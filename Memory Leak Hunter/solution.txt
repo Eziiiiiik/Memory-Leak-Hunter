@@ -1,0 +1,333 @@
+Ответы для Memory Leak Hunter
+Вот все ответы с объяснениями:
+Уровень 1: Simple Leak
+
+cpp
+1: void process() {
+2:     char *buffer = malloc(100);
+3:     use_buffer(buffer);
+4: }
+
+Ответ: 2
+Объяснение: На строке 2 выделили память через malloc, но нигде не вызвали free(buffer). Память утекает.
+Уровень 2: Double Leak
+
+cpp
+1: void process() {
+2:     char *buf1 = malloc(100);
+3:     char *buf2 = malloc(200);
+4:     use_buffers(buf1, buf2);
+5: }
+
+Ответ: 2, 3
+Объяснение: Два malloc (строки 2 и 3), но ни одного free. Оба блока памяти утекают.
+Уровень 3: Conditional Leak
+
+cpp
+1: void process(int mode) {
+2:     char *buffer = malloc(100);
+3:     if (mode == 1) {
+4:         return;
+5:     }
+6:     free(buffer);
+7: }
+
+Ответ: 2, 4
+Объяснение: 
+
+    Строка 2: выделили память
+    Строка 4: если mode == 1, функция делает return до того, как дойдёт до free(buffer) на строке 6
+    Утечка происходит при mode == 1
+
+Уровень 4: Loop Leak
+
+cpp
+1: void process(int count) {
+2:     for (int i = 0; i < count; i++) {
+3:         char *buffer = malloc(100);
+4:         use_buffer(buffer);
+5:     }
+6: }
+
+Ответ: 3
+Объяснение: malloc на строке 3 вызывается внутри цикла, но free нет вообще. На каждой итерации утекает 100 байт. При count = 1000 это 100 КБ утечки!
+Уровень 5: Pointer Overwrite
+
+cpp
+1: void process() {
+2:     char *buffer = malloc(100);
+3:     buffer = malloc(200);
+4:     free(buffer);
+5: }
+
+Ответ: 2, 3
+Объяснение: 
+
+    Строка 2: выделили 100 байт, buffer указывает на адрес A
+    Строка 3: выделили 200 байт, buffer теперь указывает на адрес B
+    Адрес A потерян навсегда — мы перезаписали указатель
+    Строка 4: free(buffer) освободит только адрес B
+    Первый блок (100 байт) утекает
+
+Уровень 6: Early Return
+
+cpp
+1: void process(char *data) {
+2:     char *buffer = malloc(100);
+3:     if (!data) {
+4:         return;
+5:     }
+6:     use_buffer(buffer);
+7:     free(buffer);
+8: }
+
+Ответ: 2, 4
+Объяснение: 
+
+    Строка 2: выделили память
+    Строка 4: если data == NULL, делаем return до free(buffer)
+    Утечка при data == NULL
+
+Уровень 7: Realloc Leak
+
+cpp
+1: void process() {
+2:     char *buffer = malloc(100);
+3:     buffer = realloc(buffer, 200);
+4:     use_buffer(buffer);
+5: }
+
+Ответ: 2, 3
+Объяснение: 
+
+    Строка 2: выделили 100 байт
+    Строка 3: realloc пытается увеличить блок до 200 байт
+    Если realloc не может расширить блок на месте, он:
+        Выделяет новый блок по другому адресу
+        Копирует туда старые данные
+        Освобождает старый блок
+        Возвращает указатель на новый блок
+    Но если realloc вернёт NULL (ошибка), мы перезапишем buffer значением NULL и потеряем адрес старого блока
+    Плюс нет free в конце — даже если всё успешно, память утекает
+
+Уровень 8: Conditional Free
+
+cpp
+1: void process(int flag) {
+2:     char *buffer = malloc(100);
+3:     if (flag) {
+4:         free(buffer);
+5:     }
+6: }
+
+Ответ: 2
+Объяснение: 
+
+    Строка 2: выделили память
+    Строка 4: free вызывается только если flag != 0
+    Если flag == 0, память не освобождается — утечка
+
+Уровень 9: Loop with Conditional Free
+
+cpp
+1: void process(int count) {
+2:     for (int i = 0; i < count; i++) {
+3:         char *buffer = malloc(100);
+4:         if (i % 2 == 0) {
+5:             free(buffer);
+6:         }
+7:     }
+8: }
+
+Ответ: 3
+Объяснение: 
+
+    Строка 3: malloc в цикле
+    Строка 5: free вызывается только на чётных итерациях (i % 2 == 0)
+    На нечётных итерациях (i = 1, 3, 5, ...) память не освобождается
+    При count = 10: освободится 5 раз (i=0,2,4,6,8), утечёт 5 раз (i=1,3,5,7,9)
+
+Уровень 10: Double Free
+
+cpp
+1: void process() {
+2:     char *buffer = malloc(100);
+3:     free(buffer);
+4:     free(buffer);
+5: }
+
+Ответ: 4
+Объяснение: Это не утечка, а double free — опасная ошибка!
+
+    Строка 3: освободили память
+    Строка 4: пытаемся освободить ту же память ещё раз
+    Это может привести к краху программы или уязвимостям безопасности
+    После free нужно обнулять указатель: buffer = NULL
+
+
+===========================================English===========================================
+Memory Leak Hunter - Solutions Guide
+Here are all the solutions with explanations:
+Level 1: Simple Leak
+
+cpp
+1: void process() {
+2:     char *buffer = malloc(100);
+3:     use_buffer(buffer);
+4: }
+
+Answer: 2
+Explanation: On line 2, memory was allocated using malloc, but free(buffer) was never called. The memory leaks.
+Level 2: Double Leak
+
+cpp
+1: void process() {
+2:     char *buf1 = malloc(100);
+3:     char *buf2 = malloc(200);
+4:     use_buffers(buf1, buf2);
+5: }
+
+Answer: 2, 3
+Explanation: Two malloc calls (lines 2 and 3), but no free at all. Both memory blocks leak.
+Level 3: Conditional Leak
+
+cpp
+1: void process(int mode) {
+2:     char *buffer = malloc(100);
+3:     if (mode == 1) {
+4:         return;
+5:     }
+6:     free(buffer);
+7: }
+
+Answer: 2, 4
+Explanation: 
+
+    Line 2: Memory was allocated
+    Line 4: If mode == 1, the function executes return before reaching free(buffer) on line 6
+    The leak occurs when mode == 1
+
+Level 4: Loop Leak
+
+cpp
+1: void process(int count) {
+2:     for (int i = 0; i < count; i++) {
+3:         char *buffer = malloc(100);
+4:         use_buffer(buffer);
+5:     }
+6: }
+
+Answer: 3
+Explanation: The malloc on line 3 is called inside the loop, but there's no free at all. On each iteration, 100 bytes leak. With count = 1000, that's 100 KB of leaked memory!
+Level 5: Pointer Overwrite
+
+cpp
+1: void process() {
+2:     char *buffer = malloc(100);
+3:     buffer = malloc(200);
+4:     free(buffer);
+5: }
+
+Answer: 2, 3
+Explanation: 
+
+    Line 2: Allocated 100 bytes, buffer points to address A
+    Line 3: Allocated 200 bytes, buffer now points to address B
+    Address A is lost forever — we overwrote the pointer
+    Line 4: free(buffer) will only free address B
+    The first block (100 bytes) leaks
+
+Level 6: Early Return
+
+cpp
+1: void process(char *data) {
+2:     char *buffer = malloc(100);
+3:     if (!data) {
+4:         return;
+5:     }
+6:     use_buffer(buffer);
+7:     free(buffer);
+8: }
+
+Answer: 2, 4
+Explanation: 
+
+    Line 2: Memory was allocated
+    Line 4: If data == NULL, we execute return before free(buffer)
+    Leak occurs when data == NULL
+
+Level 7: Realloc Leak
+
+cpp
+1: void process() {
+2:     char *buffer = malloc(100);
+3:     buffer = realloc(buffer, 200);
+4:     use_buffer(buffer);
+5: }
+
+Answer: 2, 3
+Explanation: 
+
+    Line 2: Allocated 100 bytes
+    Line 3: realloc tries to resize the block to 200 bytes
+    If realloc cannot expand the block in place, it:
+        Allocates a new block at a different address
+        Copies the old data there
+        Frees the old block
+        Returns a pointer to the new block
+    But if realloc returns NULL (error), we overwrite buffer with NULL and lose the address of the old block
+    Plus, there's no free at the end — even if everything succeeds, the memory leaks
+
+Level 8: Conditional Free
+
+cpp
+1: void process(int flag) {
+2:     char *buffer = malloc(100);
+3:     if (flag) {
+4:         free(buffer);
+5:     }
+6: }
+
+Answer: 2
+Explanation: 
+
+    Line 2: Memory was allocated
+    Line 4: free is called only if flag != 0
+    If flag == 0, the memory is not freed — leak
+
+Level 9: Loop with Conditional Free
+
+cpp
+1: void process(int count) {
+2:     for (int i = 0; i < count; i++) {
+3:         char *buffer = malloc(100);
+4:         if (i % 2 == 0) {
+5:             free(buffer);
+6:         }
+7:     }
+8: }
+
+Answer: 3
+Explanation: 
+
+    Line 3: malloc inside the loop
+    Line 5: free is called only on even iterations (i % 2 == 0)
+    On odd iterations (i = 1, 3, 5, ...), the memory is not freed
+    With count = 10: freed 5 times (i=0,2,4,6,8), leaked 5 times (i=1,3,5,7,9)
+
+Level 10: Double Free
+
+cpp
+1: void process() {
+2:     char *buffer = malloc(100);
+3:     free(buffer);
+4:     free(buffer);
+5: }
+
+Answer: 4
+Explanation: This is not a leak, but a double free — a dangerous bug!
+
+    Line 3: Freed the memory
+    Line 4: Trying to free the same memory again
+    This can lead to program crashes or security vulnerabilities
+    After free, you should nullify the pointer: buffer = NULL

@@ -1,0 +1,26 @@
+# Бинарники
+memory-leak-hunter
+memory-leak-hunter.exe
+*.o
+*.obj
+
+# Файлы прогресса (у каждого игрока свой)
+scores.json
+
+# Временные файлы
+*.tmp
+*.log
+
+# IDE файлы
+.vscode/
+.vs/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Build папки
+build/
+cmake-build-*/
